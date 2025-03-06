@@ -25,3 +25,9 @@ function animate() {
 }
 
 animate();
+
+export class Main {
+  constructor() {
+    //
+  }
+}

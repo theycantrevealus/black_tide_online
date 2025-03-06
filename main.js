@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import __BTCharacter from './coordinator/character'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from 'stats.js'
 
@@ -12,6 +13,7 @@ const colorLib = {
 }
 
 let camera, controls, scene, renderer;
+let myCharacter;
 
 init();
 
@@ -19,18 +21,15 @@ function init() {
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcccccc);
-    scene.fog = new THREE.FogExp2(0xcccccc, 0.002);
+    scene.fog = new THREE.FogExp2(0xcccccc, 0.05);
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setAnimationLoop(animate);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
+    
 
     camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, .1, 1000);
-    camera.position.set(400, 400, 0);
+    camera.position.set(40, 40, 0);
 
     // controls
     controls = new OrbitControls(camera, renderer.domElement);
@@ -42,14 +41,15 @@ function init() {
 
     controls.screenSpacePanning = false;
 
-    controls.minDistance = 50;
-    controls.maxDistance = 100;
+    controls.minDistance = 5;
+    controls.maxDistance = 10;
 
-    controls.maxPolarAngle = Math.PI / 2.5;
+    controls.maxPolarAngle = Math.PI / 3; // Max rotate to bottom
+    controls.minPolarAngle = Math.PI / 3; // Max rotate to top
 
     // world
 
-    const geometry = new THREE.ConeGeometry(10, 30, 4, 1);
+    const geometry = new THREE.ConeGeometry(10, 30, 5, 1);
     const material = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true });
 
     // terrain
@@ -57,7 +57,7 @@ function init() {
     loader.crossOrigin = true;
 
     var terrain_geometry = new THREE.PlaneGeometry(2000, 2000, 100, 100);
-    var terrain_material = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true });
+    var terrain_material = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true, wireframe: false });
 
     const terrain = new THREE.Mesh(terrain_geometry, terrain_material);
     terrain.receiveShadow = true;
@@ -70,7 +70,7 @@ function init() {
         texture.repeat.y = 1;
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(50, 50);
+        texture.repeat.set(500, 500);
         terrain_material.map = texture;
         terrain_material.needsUpdate = true;
         terrain_material.flatShading = false;
@@ -85,7 +85,7 @@ function init() {
 
     });
 
-    const peak = 10;
+    const peak = 0;
     const vertices = terrain.geometry.attributes.position.array;
     for (let i = 0; i <= vertices.length; i += 3) {
 
@@ -97,23 +97,14 @@ function init() {
     terrain.geometry.computeVertexNormals();
 
     scene.add(terrain);
+
+
+    // character
+    myCharacter = new __BTCharacter( scene, renderer, camera );
+    myCharacter.loadModel()
     
-    for (let i = 0; i < 1; i ++) {
 
-        const mesh = new THREE.Mesh(geometry, material);
-        // mesh.position.x = Math.random() * 1600 - 800;
-        mesh.position.x = 0;
 
-        mesh.position.y = 15;
-
-        // mesh.position.z = Math.random() * 1600 - 800;
-        mesh.position.z = 0;
-        
-        mesh.updateMatrix();
-        mesh.matrixAutoUpdate = false;
-        scene.add(mesh);
-
-    }
 
     // lights
     const dirLight1 = new THREE.DirectionalLight(0x00CCFFFF, 3);
@@ -128,6 +119,72 @@ function init() {
 
     const ambientLight = new THREE.AmbientLight(0x555555);
     scene.add(ambientLight);
+
+    const runningSpeed = .85;
+
+    let targetQuaternion = camera.quaternion;
+
+    document.addEventListener("keyup", function(event) {
+        myCharacter.action_stop();
+    });
+
+    document.addEventListener("keydown", function(event) {
+        var keyCode = event.which;
+
+        // 'from walk to idle': __this.prepareCrossFade( __this.#action_walk, __this.#action_idle, 1.0 );
+        // 'from idle to walk': __this.prepareCrossFade( __this.#action_idle, __this.#action_walk, 0.5 );
+        // 'from walk to run': __this.prepareCrossFade( __this.#action_walk, __this.#action_run, 2.5 );
+        // 'from run to walk': __this.prepareCrossFade( __this.#action_run, __this.#action_walk, 5.0 );
+
+        // const cameraDirection = camera.getWorldDirection(getCameraRotate);
+        // console.log(cameraDirection);
+        // const {x, y, z, w} = targetQuaternion;
+        // console.clear();
+        // console.table({x, y, z, w});
+        // const {x, y, z} = mesh.quaternion;
+        // console.table({x, y, z});
+        // console.log(`X : ${targetQuaternion.x} compare ${mesh.quaternion.x}`);
+        // console.log(`Y : ${targetQuaternion.y} compare ${mesh.quaternion.y}`);
+        // console.log(`Z : ${targetQuaternion.z} compare ${mesh.quaternion.z}`);
+        // console.log(`W : ${targetQuaternion.w} compare ${mesh.quaternion.w}`);
+
+        if (keyCode == 87) { // W
+            if (!myCharacter.inst_model.quaternion.equals(targetQuaternion)) {
+            
+                var step = 2000;
+                const towardDirection = targetQuaternion;
+                towardDirection.x = 0;
+                towardDirection.z = 0;
+                myCharacter.inst_model.quaternion.rotateTowards(towardDirection, step);
+                myCharacter.action_walk();
+            }
+        }
+
+        // let direction = 0;
+        // if (keyCode == 87) { // W
+        //     direction = runningSpeed * -.05;
+        //     myCharacter.inst_model.translateX(direction);
+        //     // camera.position.addScaledVector(getCameraRotate, runningSpeed);
+        // } else if (keyCode == 83) { // S
+        //     myCharacter.inst_model.translateX(runningSpeed);
+        // } else if (keyCode == 65) { //A
+        //     myCharacter.inst_model.translateZ(runningSpeed);
+        // } else if (keyCode == 68) { // D
+        //     myCharacter.inst_model.translateZ(runningSpeed * -1);
+        // } else if (keyCode == 32) { // Space
+        //     // cube.position.set(0, 0, 0);
+        // }
+        
+        // camera.position.x = mesh.position.x;
+        // camera.position.z = mesh.position.z + 10;
+        camera.lookAt(myCharacter.inst_model.position);
+        
+    }, false);
+
+    renderer.setAnimationLoop(animate);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
 
     //
 
@@ -144,9 +201,12 @@ function onWindowResize() {
 
 }
 
+
 function animate() {
 
     stats.begin();
+
+    myCharacter.animationCharacter();
 
     controls.update();
     render();
