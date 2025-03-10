@@ -1,222 +1,539 @@
 import * as THREE from 'three';
-import __BTCharacter from './coordinator/character'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import Stats from 'stats.js'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import Stats from 'stats.js';
+import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
+import { MeshBVH, MeshBVHHelper, StaticGeometryGenerator } from 'three-mesh-bvh';
+import __BTCharacter from './coordinator/character';
 
-const stats = new Stats();
-stats.showPanel(0);
-document.body.appendChild(stats.dom);
+const params = {
 
-const colorLib = {
-    meshLiner: 0x00FF00,
-    frameLiner: 0xffff00
-}
+	firstPerson: false,
 
-let camera, controls, scene, renderer;
-let myCharacter;
+	displayCollider: false,
+	displayBVH: false,
+	visualizeDepth: 10,
+	gravity: - 30,
+	playerSpeed: 2.5,
+	physicsSteps: 20,
+
+	reset: reset,
+
+};
+
+let CharacterLoad;
+let renderer, camera, scene, clock, gui, stats;
+let environment, collider, visualizer, player, controls;
+let playerIsOnGround = false;
+let fwdPressed = false, bkdPressed = false, lftPressed = false, rgtPressed = false, shiftPressed = false;
+let playerVelocity = new THREE.Vector3();
+let upVector = new THREE.Vector3( 0, 1, 0 );
+let tempVector = new THREE.Vector3();
+let tempVector2 = new THREE.Vector3();
+let tempBox = new THREE.Box3();
+let tempMat = new THREE.Matrix4();
+let tempSegment = new THREE.Line3();
+let step = 500;
 
 init();
+render();
 
-function init() {
+async function init() {
 
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xcccccc);
-    scene.fog = new THREE.FogExp2(0xcccccc, 0.05);
+	const bgColor = 0x263238 / 2;
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    
+	// renderer setup
+	renderer = new THREE.WebGLRenderer( { antialias: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.setClearColor( bgColor, 1 );
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+	document.body.appendChild( renderer.domElement );
 
-    camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, .1, 1000);
-    camera.position.set(40, 40, 0);
+	// scene setup
+	scene = new THREE.Scene();
+	scene.fog = new THREE.Fog( bgColor, 20, 70 );
 
-    // controls
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.listenToKeyEvents(window);
+	// lights
+	const light = new THREE.DirectionalLight( 0xffffff, 3 );
+	light.position.set( 1, 1.5, 1 ).multiplyScalar( 50 );
+	light.shadow.mapSize.setScalar( 2048 );
+	light.shadow.bias = - 1e-4;
+	light.shadow.normalBias = 0.05;
+	light.castShadow = true;
 
-    controls.enableDamping = true;
-    controls.enablePan = false;
-    controls.dampingFactor = 0.05;
+	const shadowCam = light.shadow.camera;
+	shadowCam.bottom = shadowCam.left = - 30;
+	shadowCam.top = 30;
+	shadowCam.right = 45;
 
-    controls.screenSpacePanning = false;
+	scene.add( light );
+	scene.add( new THREE.HemisphereLight( 0xffffff, 0x223344, 0.4 ) );
 
-    controls.minDistance = 5;
-    controls.maxDistance = 10;
+	// camera setup
+	camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 50 );
+	camera.position.set( 10, 10, - 10 );
+	camera.far = 100;
+	camera.updateProjectionMatrix();
+	window.camera = camera;
 
-    controls.maxPolarAngle = Math.PI / 3; // Max rotate to bottom
-    controls.minPolarAngle = Math.PI / 3; // Max rotate to top
+	clock = new THREE.Clock();
 
-    // world
+	controls = new OrbitControls( camera, renderer.domElement );
 
-    const geometry = new THREE.ConeGeometry(10, 30, 5, 1);
-    const material = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true });
+	// stats setup
+	stats = new Stats();
+	document.body.appendChild( stats.dom );
 
-    // terrain
-    const loader = new THREE.TextureLoader();
-    loader.crossOrigin = true;
+	loadColliderEnvironment();
 
-    var terrain_geometry = new THREE.PlaneGeometry(2000, 2000, 100, 100);
-    var terrain_material = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true, wireframe: false });
+	// character
+	// player = new THREE.Mesh(
+	// 	new RoundedBoxGeometry( 1.0, 2.0, 1.0, 10, 0.5 ),
+	// 	new THREE.MeshStandardMaterial()
+	// );
 
-    const terrain = new THREE.Mesh(terrain_geometry, terrain_material);
-    terrain.receiveShadow = true;
-    terrain.rotation.x = -Math.PI / 2;
-    
-
-    loader.load('assets/grass.jpg', function (texture) {
+    CharacterLoad = new __BTCharacter( scene, renderer, camera );
+    await CharacterLoad.loadModel().then(async () => {
         
-        texture.repeat.x = 1;
-        texture.repeat.y = 1;
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(500, 500);
-        terrain_material.map = texture;
-        terrain_material.needsUpdate = true;
-        terrain_material.flatShading = false;
-
-    }, function (xhr) {
-        
-        //
-
-    }, function (xhr) {
-        
-        console.log('An error happened', xhr);
+        player = await CharacterLoad.inst_model;
 
     });
+    // await load.loadModel().then(async (a) => {
+    //     player = await load.inst_model;
+    // });
+    
 
-    const peak = 0;
-    const vertices = terrain.geometry.attributes.position.array;
-    for (let i = 0; i <= vertices.length; i += 3) {
+	// player.geometry.translate( 0, - 0.5, 0 );
+	// player.capsuleInfo = {
+	// 	radius: 0.5,
+	// 	segment: new THREE.Line3( new THREE.Vector3(), new THREE.Vector3( 0, - 1.0, 0.0 ) )
+	// };
+	// player.castShadow = true;
+	// player.receiveShadow = true;
+	// player.material.shadowSide = 2;
+	// scene.add( player );
+	reset();
 
-        vertices[i + 2] = peak * Math.random();
+	// dat.gui
+	gui = new GUI();
+	gui.add( params, 'firstPerson' ).onChange( v => {
+
+		if ( ! v ) {
+
+			camera
+				.position
+				.sub( controls.target )
+				.normalize()
+				.multiplyScalar( 10 )
+				.add( controls.target );
+
+		}
+
+	} );
+
+	const visFolder = gui.addFolder( 'Visualization' );
+	visFolder.add( params, 'displayCollider' );
+	visFolder.add( params, 'displayBVH' );
+	visFolder.add( params, 'visualizeDepth', 1, 20, 1 ).onChange( v => {
+
+		visualizer.depth = v;
+		visualizer.update();
+
+	} );
+	visFolder.open();
+
+	const physicsFolder = gui.addFolder( 'Player' );
+	physicsFolder.add( params, 'physicsSteps', 0, 30, 1 );
+	physicsFolder.add( params, 'gravity', - 100, 100, 0.01 ).onChange( v => {
+
+		params.gravity = parseFloat( v );
+
+	} );
+	physicsFolder.add( params, 'playerSpeed', 1, 20 );
+	physicsFolder.open();
+
+	gui.add( params, 'reset' );
+	gui.open();
+
+	window.addEventListener( 'resize', function () {
+
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+
+		renderer.setSize( window.innerWidth, window.innerHeight );
+
+	}, false );
+
+    controls.addEventListener( 'change', function() {
+        
+        // towardDirection = camera.quaternion;
+        // towardDirection.x = 0;
+        // towardDirection.z = 0;
+        // towardDirection.y = parseFloat(towardDirection.y.toFixed(3));
+        // towardDirection.w = parseFloat(towardDirection.w.toFixed(3));
+
+    } );
+
+	CharacterLoad.action_run();
+
+	window.addEventListener( 'keydown', function ( e ) {
+
+        switch ( e.code ) {
+
+			case 'KeyW':
+				fwdPressed = true;
+				break;
+			case 'KeyS': bkdPressed = true; break;
+			case 'KeyD': rgtPressed = true; break;
+			case 'KeyA': lftPressed = true; break;
+			case 'ShiftLeft': shiftPressed = true ;break;
+			case 'Space':
+				if ( playerIsOnGround ) {
+
+					playerVelocity.y = 12.0;
+					playerIsOnGround = false;
+
+				}
+
+				break;
+
+		}
+
+	} );
+
+	window.addEventListener( 'keyup', function ( e ) {
+
+		// CharacterLoad.action_stop();
+
+		switch ( e.code ) {
+
+			case 'KeyW': fwdPressed = false; break;
+			case 'KeyS': bkdPressed = false; break;
+			case 'KeyD': rgtPressed = false; break;
+			case 'KeyA': lftPressed = false; break;
+			case 'ShiftLeft': shiftPressed = false ;break;
+
+		}
+
+	} );
+
+}
+
+function loadColliderEnvironment() {
+
+	new GLTFLoader()
+		.load( 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/main/models/dungeon-warkarma/scene.gltf', res => {
+
+			const gltfScene = res.scene;
+			gltfScene.scale.setScalar( .01 );
+
+			const box = new THREE.Box3();
+			box.setFromObject( gltfScene );
+			box.getCenter( gltfScene.position ).negate();
+			gltfScene.updateMatrixWorld( true );
+
+			// visual geometry setup
+			const toMerge = {};
+			gltfScene.traverse( c => {
+
+				if (
+					/Boss/.test( c.name ) ||
+				/Enemie/.test( c.name ) ||
+				/Shield/.test( c.name ) ||
+				/Sword/.test( c.name ) ||
+				/Character/.test( c.name ) ||
+				/Gate/.test( c.name ) ||
+
+				// spears
+				/Cube/.test( c.name ) ||
+
+				// pink brick
+				c.material && c.material.color.r === 1.0
+				) {
+
+					return;
+
+				}
+
+				if ( c.isMesh ) {
+
+					const hex = c.material.color.getHex();
+					toMerge[ hex ] = toMerge[ hex ] || [];
+					toMerge[ hex ].push( c );
+
+				}
+
+			} );
+
+			environment = new THREE.Group();
+			for ( const hex in toMerge ) {
+
+				const arr = toMerge[ hex ];
+				const visualGeometries = [];
+				arr.forEach( mesh => {
+
+					if ( mesh.material.emissive.r !== 0 ) {
+
+						environment.attach( mesh );
+
+					} else {
+
+						const geom = mesh.geometry.clone();
+						geom.applyMatrix4( mesh.matrixWorld );
+						visualGeometries.push( geom );
+
+					}
+
+				} );
+
+				if ( visualGeometries.length ) {
+
+					const newGeom = BufferGeometryUtils.mergeGeometries( visualGeometries );
+					const newMesh = new THREE.Mesh( newGeom, new THREE.MeshStandardMaterial( { color: parseInt( hex ), shadowSide: 2 } ) );
+					newMesh.castShadow = true;
+					newMesh.receiveShadow = true;
+					newMesh.material.shadowSide = 2;
+
+					environment.add( newMesh );
+
+				}
+
+			}
+
+			const staticGenerator = new StaticGeometryGenerator( environment );
+			staticGenerator.attributes = [ 'position' ];
+
+			const mergedGeometry = staticGenerator.generate();
+			mergedGeometry.boundsTree = new MeshBVH( mergedGeometry );
+
+			collider = new THREE.Mesh( mergedGeometry );
+			collider.material.wireframe = true;
+			collider.material.opacity = 0.5;
+			collider.material.transparent = true;
+
+			visualizer = new MeshBVHHelper( collider, params.visualizeDepth );
+			scene.add( visualizer );
+			scene.add( collider );
+			scene.add( environment );
+
+		} );
+
+}
+
+function reset() {
+
+    if( player ) {
+
+        playerVelocity.set( 0, 0, 0 );
+        player.position.set( 15.75, - 3, 30 );
+        camera.position.sub( controls.target );
+        controls.target.copy( player.position );
+        camera.position.add( player.position );
+        controls.update();
 
     }
 
-    terrain.geometry.attributes.position.needsUpdate = true;
-    terrain.geometry.computeVertexNormals();
+}
 
-    scene.add(terrain);
+function updatePlayer( delta ) {
 
+    if( player ) {
 
-    // character
-    myCharacter = new __BTCharacter( scene, renderer, camera );
-    myCharacter.loadModel()
-    
+        if ( playerIsOnGround ) {
 
+            playerVelocity.y = delta * params.gravity;
 
+        } else {
 
-    // lights
-    const dirLight1 = new THREE.DirectionalLight(0x00CCFFFF, 3);
-    dirLight1.position.set(1, 1, 1);
-    dirLight1.castShadow = true;
-    scene.add(dirLight1);
+            playerVelocity.y += delta * params.gravity;
 
-    const dirLight2 = new THREE.DirectionalLight(0x002288, 3);
-    dirLight2.position.set(- 1, - 1, - 1);
-    dirLight2.castShadow = true;
-    scene.add(dirLight2);
-
-    const ambientLight = new THREE.AmbientLight(0x555555);
-    scene.add(ambientLight);
-
-    const runningSpeed = .85;
-
-    let targetQuaternion = camera.quaternion;
-
-    document.addEventListener("keyup", function(event) {
-        myCharacter.action_stop();
-    });
-
-    document.addEventListener("keydown", function(event) {
-        var keyCode = event.which;
-
-        // 'from walk to idle': __this.prepareCrossFade( __this.#action_walk, __this.#action_idle, 1.0 );
-        // 'from idle to walk': __this.prepareCrossFade( __this.#action_idle, __this.#action_walk, 0.5 );
-        // 'from walk to run': __this.prepareCrossFade( __this.#action_walk, __this.#action_run, 2.5 );
-        // 'from run to walk': __this.prepareCrossFade( __this.#action_run, __this.#action_walk, 5.0 );
-
-        // const cameraDirection = camera.getWorldDirection(getCameraRotate);
-        // console.log(cameraDirection);
-        // const {x, y, z, w} = targetQuaternion;
-        // console.clear();
-        // console.table({x, y, z, w});
-        // const {x, y, z} = mesh.quaternion;
-        // console.table({x, y, z});
-        // console.log(`X : ${targetQuaternion.x} compare ${mesh.quaternion.x}`);
-        // console.log(`Y : ${targetQuaternion.y} compare ${mesh.quaternion.y}`);
-        // console.log(`Z : ${targetQuaternion.z} compare ${mesh.quaternion.z}`);
-        // console.log(`W : ${targetQuaternion.w} compare ${mesh.quaternion.w}`);
-
-        if (keyCode == 87) { // W
-            if (!myCharacter.inst_model.quaternion.equals(targetQuaternion)) {
-            
-                var step = 2000;
-                const towardDirection = targetQuaternion;
-                towardDirection.x = 0;
-                towardDirection.z = 0;
-                myCharacter.inst_model.quaternion.rotateTowards(towardDirection, step);
-                myCharacter.action_walk();
-            }
         }
 
-        // let direction = 0;
-        // if (keyCode == 87) { // W
-        //     direction = runningSpeed * -.05;
-        //     myCharacter.inst_model.translateX(direction);
-        //     // camera.position.addScaledVector(getCameraRotate, runningSpeed);
-        // } else if (keyCode == 83) { // S
-        //     myCharacter.inst_model.translateX(runningSpeed);
-        // } else if (keyCode == 65) { //A
-        //     myCharacter.inst_model.translateZ(runningSpeed);
-        // } else if (keyCode == 68) { // D
-        //     myCharacter.inst_model.translateZ(runningSpeed * -1);
-        // } else if (keyCode == 32) { // Space
-        //     // cube.position.set(0, 0, 0);
-        // }
-        
-        // camera.position.x = mesh.position.x;
-        // camera.position.z = mesh.position.z + 10;
-        camera.lookAt(myCharacter.inst_model.position);
-        
-    }, false);
+        player.position.addScaledVector( playerVelocity, delta );
 
-    renderer.setAnimationLoop(animate);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
+        // move the player
+        const angle = controls.getAzimuthalAngle();
+        if ( fwdPressed ) {
 
-    //
+            tempVector.set( 0, 0, - 1 ).applyAxisAngle( upVector, angle );
+            player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
-    window.addEventListener('resize', onWindowResize);
+        }
 
-}
+        if ( bkdPressed ) {
 
-function onWindowResize() {
+            tempVector.set( 0, 0, 1 ).applyAxisAngle( upVector, angle );
+            player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+        }
 
-    renderer.setSize(window.innerWidth, window.innerHeight);
+        if ( lftPressed ) {
 
-}
+            tempVector.set( - 1, 0, 0 ).applyAxisAngle( upVector, angle );
+            player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
+        }
 
-function animate() {
+        if ( rgtPressed ) {
 
-    stats.begin();
+            tempVector.set( 1, 0, 0 ).applyAxisAngle( upVector, angle );
+            player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
-    myCharacter.animationCharacter();
+        }
 
-    controls.update();
-    render();
+        player.updateMatrixWorld();
 
-    stats.end();
+        // adjust player position based on collisions
+        const capsuleInfo = player.capsuleInfo;
+        tempBox.makeEmpty();
+        tempMat.copy( collider.matrixWorld ).invert();
+        tempSegment.copy( capsuleInfo.segment );
+
+        // get the position of the capsule in the local space of the collider
+        tempSegment.start.applyMatrix4( player.matrixWorld ).applyMatrix4( tempMat );
+        tempSegment.end.applyMatrix4( player.matrixWorld ).applyMatrix4( tempMat );
+
+        // get the axis aligned bounding box of the capsule
+        tempBox.expandByPoint( tempSegment.start );
+        tempBox.expandByPoint( tempSegment.end );
+
+        tempBox.min.addScalar( - capsuleInfo.radius );
+        tempBox.max.addScalar( capsuleInfo.radius );
+
+        collider.geometry.boundsTree.shapecast( {
+
+            intersectsBounds: box => box.intersectsBox( tempBox ),
+
+            intersectsTriangle: tri => {
+
+                // check if the triangle is intersecting the capsule and adjust the
+                // capsule position if it is.
+                const triPoint = tempVector;
+                const capsulePoint = tempVector2;
+
+                const distance = tri.closestPointToSegment( tempSegment, triPoint, capsulePoint );
+                if ( distance < capsuleInfo.radius ) {
+
+                    const depth = capsuleInfo.radius - distance;
+                    const direction = capsulePoint.sub( triPoint ).normalize();
+
+                    tempSegment.start.addScaledVector( direction, depth );
+                    tempSegment.end.addScaledVector( direction, depth );
+
+                }
+
+            }
+
+        } );
+
+        // get the adjusted position of the capsule collider in world space after checking
+        // triangle collisions and moving it. capsuleInfo.segment.start is assumed to be
+        // the origin of the player model.
+        const newPosition = tempVector;
+        newPosition.copy( tempSegment.start ).applyMatrix4( collider.matrixWorld );
+
+        // check how much the collider was moved
+        const deltaVector = tempVector2;
+        deltaVector.subVectors( newPosition, player.position );
+
+        // if the player was primarily adjusted vertically we assume it's on something we should consider ground
+        playerIsOnGround = deltaVector.y > Math.abs( delta * playerVelocity.y * 0.25 );
+
+        const offset = Math.max( 0.0, deltaVector.length() - 1e-5 );
+        deltaVector.normalize().multiplyScalar( offset );
+
+        // adjust the player model
+        player.position.add( deltaVector );
+
+        if ( ! playerIsOnGround ) {
+
+            deltaVector.normalize();
+            playerVelocity.addScaledVector( deltaVector, - deltaVector.dot( playerVelocity ) );
+
+        } else {
+
+            playerVelocity.set( 0, 0, 0 );
+
+        }
+
+        // adjust the camera
+        camera.position.sub( controls.target );
+        controls.target.copy( player.position );
+        camera.position.add( player.position );
+
+        // if the player has fallen too far below the level reset their position to the start
+        if ( player.position.y < - 25 ) {
+
+            reset();
+
+        }
+
+    }
 
 }
 
 function render() {
 
-    renderer.render(scene, camera);
+	stats.update();
+	requestAnimationFrame( render );
+
+    if( CharacterLoad && player ) {
+        
+        CharacterLoad.animationCharacter();
+
+        const towardDirection = camera.quaternion;
+        towardDirection.x = 0;
+        towardDirection.z = 0;
+        towardDirection.y = parseFloat(towardDirection.y.toFixed(3));
+        towardDirection.w = parseFloat(towardDirection.w.toFixed(3));
+
+		if(!shiftPressed) {
+
+			player.quaternion.rotateTowards(towardDirection, step);
+
+		}
+
+    }
+
+	const delta = Math.min( clock.getDelta(), 0.1 );
+	if ( params.firstPerson ) {
+
+		controls.maxPolarAngle = Math.PI;
+		controls.minDistance = 1e-4;
+		controls.maxDistance = 1e-4;
+
+	} else {
+
+		controls.maxPolarAngle = Math.PI / 2;
+		controls.minDistance = 1;
+		controls.maxDistance = 20;
+
+	}
+
+	if ( collider ) {
+
+        collider.visible = params.displayCollider;
+		visualizer.visible = params.displayBVH;
+
+		const physicsSteps = params.physicsSteps;
+
+		for ( let i = 0; i < physicsSteps; i ++ ) {
+
+			updatePlayer( delta / physicsSteps );
+
+		}
+
+	}
+
+	// TODO: limit the camera movement based on the collider
+	// raycast in direction of camera and move it if it's further than the closest point
+
+	controls.update();
+
+	renderer.render( scene, camera );
 
 }

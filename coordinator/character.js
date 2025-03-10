@@ -25,12 +25,13 @@ export default class __BTCharacter {
 
     #actions;
     #settings;
-    #model;
+    model;
     #skeleton;
     mixer;
     #clock;
     #singleStepMode = true;
     #sizeOfNextStep = 0;
+    #keyfames = [];
     #runningSpeed = .85;
     #crossFadeControls;
     #scene;
@@ -46,6 +47,7 @@ export default class __BTCharacter {
         this.#camera = camera;
         this.#renderer = renderer;
         this.labelRenderer = new CSS2DRenderer();
+        
     }
 
     setNickName() {
@@ -72,96 +74,139 @@ export default class __BTCharacter {
     }
 
     get inst_model() {
-        return this.#model;
+        return this.model;
     }
 
     async action_stop() {
         this.prepareCrossFade( this.#action_walk, this.#action_idle, .5 );
     }
 
+    async action_run() {
+        this.pauseContinue();
+        // this.prepareCrossFade( this.#action_idle, this.#action_walk, .5 );
+        // this.action_run();
+    }
+
     async action_walk() {
-        this.prepareCrossFade( this.#action_idle, this.#action_walk, .5 );
+        this.prepareCrossFade( this.#action_walk, this.#action_run, 2.5 );
+    }
+
+    async move(movements) {
+        console.log(`Move to ${JSON.stringify(movements)}`);
+        this.#keyfames = [{ time: 0, position: new THREE.Vector3(this.model.position.x, this.model.position.y, this.model.position.z) }]
+        this.#keyfames.push({ time: 1, position: new THREE.Vector3(movements.x, movements.y, movements.z) });
+        return this.#keyfames;
+    }
+
+    get currentKeyframe() {
+        return this.#keyfames;
+    }
+
+    set modelSet( model ) {
+        
+        this.model = model;
+
     }
 
     async loadModel() {
-        this.charLoader = new GLTFLoader();
-        var __this = this;
-        await this.charLoader.load( './assets/Soldier.glb', function ( gltf ) {
+
+        return new Promise(async (resolve, reject) => {
             
-            __this.#model = gltf.scene;
-            __this.#scene.add( __this.#model );
+            this.charLoader = new GLTFLoader();
+            var __this = this;
 
-            __this.#model.traverse( function ( object ) {
+            await this.charLoader.load( './assets/Soldier.glb', function ( gltf ) {
+                
+                __this.model = gltf.scene;
+                // __this.modelSet = gltf.scene;
 
-                if ( object.isMesh ) object.castShadow = true;
+                // __this.model.geometry.translate( 0, - 0.5, 0 );
+                __this.model.position.add( 0, - 100.5, 100 );
 
-            } );
+                __this.model.capsuleInfo = {
+                	radius: 0.5,
+                	segment: new THREE.Line3( new THREE.Vector3(), new THREE.Vector3( 0, - 1.0, 0.0 ) )
+                };
+                __this.model.castShadow = true;
+                __this.model.receiveShadow = true;
+                // __this.model.material.shadowSide = 2;
+                __this.#scene.add( __this.model );
 
-            __this.#skeleton = new THREE.SkeletonHelper( __this.#model );
-            __this.#skeleton.visible = true;
-            __this.#scene.add( __this.#skeleton );
-            __this.setNickName();
+                __this.model.traverse( function ( object ) {
 
-            __this.#settings = {
-                'show model': true,
-                'show skeleton': false,
-                'deactivate all': __this.deactivateAllActions,
-                'activate all': __this.activateAllActions,
-                'pause/continue': __this.pauseContinue,
-                'make single step': __this.toSingleStepMode,
-                'modify step size': 0.05,
-                'from walk to idle': function () {
+                    if ( object.isMesh ) object.castShadow = true;
 
-                    __this.prepareCrossFade( __this.#action_walk, __this.#action_idle, 1.0 );
+                } );
 
-                },
-                'from idle to walk': function () {
+                __this.#skeleton = new THREE.SkeletonHelper( __this.model );
+                __this.#skeleton.visible = true;
+                __this.#scene.add( __this.#skeleton );
+                __this.setNickName();
 
-                    __this.prepareCrossFade( __this.#action_idle, __this.#action_walk, 0.5 );
+                __this.#settings = {
+                    'show model': true,
+                    'show skeleton': false,
+                    'deactivate all': __this.deactivateAllActions,
+                    'activate all': __this.activateAllActions,
+                    'pause/continue': __this.pauseContinue,
+                    'make single step': __this.toSingleStepMode,
+                    'modify step size': 0.05,
+                    'from walk to idle': function () {
 
-                },
-                'from walk to run': function () {
+                        __this.prepareCrossFade( __this.#action_walk, __this.#action_idle, 1.0 );
 
-                    __this.prepareCrossFade( __this.#action_walk, __this.#action_run, 2.5 );
+                    },
+                    'from idle to walk': function () {
 
-                },
-                'from run to walk': function () {
+                        __this.prepareCrossFade( __this.#action_idle, __this.#action_walk, 0.5 );
 
-                    __this.prepareCrossFade( __this.#action_run, __this.#action_walk, 5.0 );
+                    },
+                    'from walk to run': function () {
 
-                },
-                'use default duration': true,
-                'set custom duration': 3.5,
-                'modify idle weight': 0.0,
-                'modify walk weight': 1.0,
-                'modify run weight': 0.0,
-                'modify time scale': 1.0
-            };
+                        __this.prepareCrossFade( __this.#action_walk, __this.#action_run, 2.5 );
 
-            const animations = gltf.animations;
+                    },
+                    'from run to walk': function () {
 
-            __this.mixer = new THREE.AnimationMixer( __this.#model );
+                        __this.prepareCrossFade( __this.#action_run, __this.#action_walk, 5.0 );
 
-            __this.#action_idle = __this.mixer.clipAction( animations[ 0 ] );
-            __this.#action_walk = __this.mixer.clipAction( animations[ 3 ] );
-            __this.#action_run = __this.mixer.clipAction( animations[ 1 ] );
+                    },
+                    'use default duration': true,
+                    'set custom duration': 3.5,
+                    'modify idle weight': 0.0,
+                    'modify walk weight': 1.0,
+                    'modify run weight': 0.0,
+                    'modify time scale': 1.0
+                };
 
-            __this.#actions = [ __this.#action_idle, __this.#action_walk, __this.#action_run ];
-            
-            __this.activateAllActions(__this.#settings);
+                const animations = gltf.animations;
 
-            __this.setWeight( __this.#action_idle, __this.#settings[ 'modify idle weight' ] );
-            __this.setWeight( __this.#action_walk, __this.#settings[ 'modify walk weight' ] );
-            __this.setWeight( __this.#action_run, __this.#settings[ 'modify run weight' ] );
+                __this.mixer = new THREE.AnimationMixer( __this.model );
 
-            __this.#actions.forEach( function ( action ) {
+                __this.#action_idle = __this.mixer.clipAction( animations[ 0 ] );
+                __this.#action_walk = __this.mixer.clipAction( animations[ 1 ] );
+                __this.#action_run = __this.mixer.clipAction( animations[ 3 ] );
 
-                action.play();
+                __this.#actions = [ __this.#action_idle, __this.#action_walk, __this.#action_run ];
+                
+                __this.activateAllActions(__this.#settings);
 
-            } );
-            
+                __this.setWeight( __this.#action_idle, __this.#settings[ 'modify idle weight' ] );
+                __this.setWeight( __this.#action_walk, __this.#settings[ 'modify walk weight' ] );
+                __this.setWeight( __this.#action_run, __this.#settings[ 'modify run weight' ] );
+
+                __this.#actions.forEach( function ( action ) {
+
+                    action.play();
+
+                } );
+
+                resolve(gltf);
+
+            }, null, reject);
 
         });
+
     }
 
     activateAllActions(settings) {
@@ -221,7 +266,7 @@ export default class __BTCharacter {
 
         if(this.mixer) {
 
-            this.mixer.update( mixerUpdateDelta );
+            this.mixer.update( .01 );
             
         }
 
