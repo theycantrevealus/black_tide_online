@@ -18,6 +18,7 @@ export default class __BTCharacter {
     #action_idle;
     #action_walk;
     #action_run;
+    #action_jump;
 
     #weight_idle;
     #weight_walk;
@@ -71,6 +72,7 @@ export default class __BTCharacter {
         this.labelRenderer.domElement.style.position = 'absolute';
         this.labelRenderer.domElement.style.top = '0px';
         // document.body.appendChild( labelRenderer.domElement );
+        
     }
 
     get inst_model() {
@@ -78,21 +80,37 @@ export default class __BTCharacter {
     }
 
     async action_stop() {
-        this.prepareCrossFade( this.#action_walk, this.#action_idle, .5 );
+        // this.prepareCrossFade( this.#action_walk, this.#action_idle, .5 );
+    }
+
+    async action_jump() {
+
+        this.prepareCrossFade( this.#action_idle, this.#action_jump, 0 );
+        this.prepareCrossFade( this.#action_jump, this.#action_idle, 0 );
+
+    }
+
+    async action_idle() {
+
+        this.prepareCrossFade( this.#action_run, this.#action_idle, .5 );
+        // const tester = __this.mixer.clipAction( animations[ 53 ] );
+        // tester.play()
+
     }
 
     async action_run() {
-        this.pauseContinue();
-        // this.prepareCrossFade( this.#action_idle, this.#action_walk, .5 );
-        // this.action_run();
+        
+        this.prepareCrossFade( this.#action_idle, this.#action_run, .005 );
+        // const tester = __this.mixer.clipAction( animations[ 53 ] );
+        // tester.play()
+
     }
 
     async action_walk() {
-        this.prepareCrossFade( this.#action_walk, this.#action_run, 2.5 );
+        // this.prepareCrossFade( this.#action_walk, this.#action_run, 2.5 );
     }
 
     async move(movements) {
-        console.log(`Move to ${JSON.stringify(movements)}`);
         this.#keyfames = [{ time: 0, position: new THREE.Vector3(this.model.position.x, this.model.position.y, this.model.position.z) }]
         this.#keyfames.push({ time: 1, position: new THREE.Vector3(movements.x, movements.y, movements.z) });
         return this.#keyfames;
@@ -115,17 +133,16 @@ export default class __BTCharacter {
             this.charLoader = new GLTFLoader();
             var __this = this;
 
-            await this.charLoader.load( './assets/Soldier.glb', function ( gltf ) {
+            await this.charLoader.load( './assets/Animated_Low_Poly_Dark_Knight_BAKED_revert.glb', function ( gltf ) {
+            // await this.charLoader.load( './assets/Soldier.glb', function ( gltf ) {
                 
                 __this.model = gltf.scene;
-                // __this.modelSet = gltf.scene;
-
-                // __this.model.geometry.translate( 0, - 0.5, 0 );
-                __this.model.position.add( 0, - 100.5, 100 );
+                // __this.model.scale.setScalar(1/150);
+                __this.model.scale.setScalar(1/2);
 
                 __this.model.capsuleInfo = {
-                	radius: 0.5,
-                	segment: new THREE.Line3( new THREE.Vector3(), new THREE.Vector3( 0, - 1.0, 0.0 ) )
+                	radius: .035,
+                	segment: new THREE.Line3( new THREE.Vector3(0, 0, 0), new THREE.Vector3( 0, 2.5, 0.0 ) )
                 };
                 __this.model.castShadow = true;
                 __this.model.receiveShadow = true;
@@ -139,7 +156,7 @@ export default class __BTCharacter {
                 } );
 
                 __this.#skeleton = new THREE.SkeletonHelper( __this.model );
-                __this.#skeleton.visible = true;
+                __this.#skeleton.visible = false;
                 __this.#scene.add( __this.#skeleton );
                 __this.setNickName();
 
@@ -161,6 +178,11 @@ export default class __BTCharacter {
                         __this.prepareCrossFade( __this.#action_idle, __this.#action_walk, 0.5 );
 
                     },
+                    'from idle to run': function () {
+
+                        __this.prepareCrossFade( __this.#action_idle, __this.#action_run, 0.5 );
+
+                    },
                     'from walk to run': function () {
 
                         __this.prepareCrossFade( __this.#action_walk, __this.#action_run, 2.5 );
@@ -174,32 +196,45 @@ export default class __BTCharacter {
                     'use default duration': true,
                     'set custom duration': 3.5,
                     'modify idle weight': 0.0,
-                    'modify walk weight': 1.0,
+                    'modify walk weight': 0.0,
                     'modify run weight': 0.0,
+                    'modify jump weight': 0.0,
                     'modify time scale': 1.0
                 };
 
                 const animations = gltf.animations;
 
-                __this.mixer = new THREE.AnimationMixer( __this.model );
-
-                __this.#action_idle = __this.mixer.clipAction( animations[ 0 ] );
-                __this.#action_walk = __this.mixer.clipAction( animations[ 1 ] );
-                __this.#action_run = __this.mixer.clipAction( animations[ 3 ] );
-
-                __this.#actions = [ __this.#action_idle, __this.#action_walk, __this.#action_run ];
+                console.log(animations);
                 
-                __this.activateAllActions(__this.#settings);
+                if(animations.length > 0) {
 
-                __this.setWeight( __this.#action_idle, __this.#settings[ 'modify idle weight' ] );
-                __this.setWeight( __this.#action_walk, __this.#settings[ 'modify walk weight' ] );
-                __this.setWeight( __this.#action_run, __this.#settings[ 'modify run weight' ] );
+                    __this.mixer = new THREE.AnimationMixer( __this.model );
 
-                __this.#actions.forEach( function ( action ) {
+                    // __this.#action_idle = __this.mixer.clipAction( animations[ 0 ] );
+                    // __this.#action_walk = __this.mixer.clipAction( animations[ 115 ] );
+                    // __this.#action_run = __this.mixer.clipAction( animations[ 29 ] );
 
-                    action.play();
+                    __this.#action_idle = __this.mixer.clipAction( animations[ 68 ] );
+                    __this.#action_walk = __this.mixer.clipAction( animations[ 115 ] );
+                    __this.#action_run = __this.mixer.clipAction( animations[ 29 ] );
+                    __this.#action_jump = __this.mixer.clipAction( animations[ 19 ] );
 
-                } );
+                    __this.#actions = [ __this.#action_idle, __this.#action_walk, __this.#action_run, __this.#action_jump ];
+                    
+                    __this.activateAllActions(__this.#settings);
+
+                    __this.setWeight( __this.#action_idle, __this.#settings[ 'modify idle weight' ] );
+                    __this.setWeight( __this.#action_walk, __this.#settings[ 'modify walk weight' ] );
+                    __this.setWeight( __this.#action_run, __this.#settings[ 'modify run weight' ] );
+                    __this.setWeight( __this.#action_jump, __this.#settings[ 'modify jump weight' ] );
+
+                    __this.#actions.forEach( function ( action ) {
+
+                        action.play();
+
+                    } );
+
+                }
 
                 resolve(gltf);
 
@@ -265,8 +300,14 @@ export default class __BTCharacter {
         }
 
         if(this.mixer) {
+            // this.model.scale.setScalar(1.5);
+            // Resize glb object
 
-            this.mixer.update( .01 );
+            // Animation speed : Soldier
+            this.mixer.update( .02 );
+
+            // // Animation speed : Ling Xu Zia
+            // this.mixer.update( .05 );
             
         }
 

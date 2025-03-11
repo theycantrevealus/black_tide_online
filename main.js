@@ -16,7 +16,10 @@ const params = {
 	displayBVH: false,
 	visualizeDepth: 10,
 	gravity: - 30,
-	playerSpeed: 2.5,
+	playerSpeed: 5,
+	playerSpeedForward: 5,
+	playerSpeedSide: 3.5,
+	playerSpeedBackward: 3.5,
 	physicsSteps: 20,
 
 	reset: reset,
@@ -102,62 +105,49 @@ async function init() {
         player = await CharacterLoad.inst_model;
 
     });
-    // await load.loadModel().then(async (a) => {
-    //     player = await load.inst_model;
-    // });
-    
-
-	// player.geometry.translate( 0, - 0.5, 0 );
-	// player.capsuleInfo = {
-	// 	radius: 0.5,
-	// 	segment: new THREE.Line3( new THREE.Vector3(), new THREE.Vector3( 0, - 1.0, 0.0 ) )
-	// };
-	// player.castShadow = true;
-	// player.receiveShadow = true;
-	// player.material.shadowSide = 2;
-	// scene.add( player );
+	
 	reset();
 
 	// dat.gui
-	gui = new GUI();
-	gui.add( params, 'firstPerson' ).onChange( v => {
+	// gui = new GUI();
+	// gui.add( params, 'firstPerson' ).onChange( v => {
 
-		if ( ! v ) {
+	// 	if ( ! v ) {
 
-			camera
-				.position
-				.sub( controls.target )
-				.normalize()
-				.multiplyScalar( 10 )
-				.add( controls.target );
+	// 		camera
+	// 			.position
+	// 			.sub( controls.target )
+	// 			.normalize()
+	// 			.multiplyScalar( 10 )
+	// 			.add( controls.target );
 
-		}
+	// 	}
 
-	} );
+	// } );
 
-	const visFolder = gui.addFolder( 'Visualization' );
-	visFolder.add( params, 'displayCollider' );
-	visFolder.add( params, 'displayBVH' );
-	visFolder.add( params, 'visualizeDepth', 1, 20, 1 ).onChange( v => {
+	// const visFolder = gui.addFolder( 'Visualization' );
+	// visFolder.add( params, 'displayCollider' );
+	// visFolder.add( params, 'displayBVH' );
+	// visFolder.add( params, 'visualizeDepth', 1, 20, 1 ).onChange( v => {
 
-		visualizer.depth = v;
-		visualizer.update();
+	// 	visualizer.depth = v;
+	// 	visualizer.update();
 
-	} );
-	visFolder.open();
+	// } );
+	// visFolder.open();
 
-	const physicsFolder = gui.addFolder( 'Player' );
-	physicsFolder.add( params, 'physicsSteps', 0, 30, 1 );
-	physicsFolder.add( params, 'gravity', - 100, 100, 0.01 ).onChange( v => {
+	// const physicsFolder = gui.addFolder( 'Player' );
+	// physicsFolder.add( params, 'physicsSteps', 0, 30, 1 );
+	// physicsFolder.add( params, 'gravity', - 100, 100, 0.01 ).onChange( v => {
 
-		params.gravity = parseFloat( v );
+	// 	params.gravity = parseFloat( v );
 
-	} );
-	physicsFolder.add( params, 'playerSpeed', 1, 20 );
-	physicsFolder.open();
+	// } );
+	// physicsFolder.add( params, 'playerSpeed', 1, 20 );
+	// physicsFolder.open();
 
-	gui.add( params, 'reset' );
-	gui.open();
+	// gui.add( params, 'reset' );
+	// gui.open();
 
 	window.addEventListener( 'resize', function () {
 
@@ -168,33 +158,33 @@ async function init() {
 
 	}, false );
 
-    controls.addEventListener( 'change', function() {
-        
-        // towardDirection = camera.quaternion;
-        // towardDirection.x = 0;
-        // towardDirection.z = 0;
-        // towardDirection.y = parseFloat(towardDirection.y.toFixed(3));
-        // towardDirection.w = parseFloat(towardDirection.w.toFixed(3));
-
-    } );
-
-	CharacterLoad.action_run();
-
 	window.addEventListener( 'keydown', function ( e ) {
 
         switch ( e.code ) {
 
 			case 'KeyW':
 				fwdPressed = true;
+				params.playerSpeed = params.playerSpeedForward;
 				break;
-			case 'KeyS': bkdPressed = true; break;
-			case 'KeyD': rgtPressed = true; break;
-			case 'KeyA': lftPressed = true; break;
+			case 'KeyS':
+				bkdPressed = true;
+				params.playerSpeed = params.playerSpeedBackward;
+				break;
+			case 'KeyD':
+				rgtPressed = true;
+				params.playerSpeed = params.playerSpeedSide;
+				break;
+			case 'KeyA':
+				lftPressed = true;
+				params.playerSpeed = params.playerSpeedSide;
+				break;
 			case 'ShiftLeft': shiftPressed = true ;break;
 			case 'Space':
 				if ( playerIsOnGround ) {
 
-					playerVelocity.y = 12.0;
+					CharacterLoad.action_jump();
+
+					playerVelocity.y = 10.0;
 					playerIsOnGround = false;
 
 				}
@@ -226,7 +216,7 @@ async function init() {
 function loadColliderEnvironment() {
 
 	new GLTFLoader()
-		.load( 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/main/models/dungeon-warkarma/scene.gltf', res => {
+		.load( './assets/maps/warkarma/scene.gltf', res => {
 
 			const gltfScene = res.scene;
 			gltfScene.scale.setScalar( .01 );
@@ -329,7 +319,8 @@ function reset() {
     if( player ) {
 
         playerVelocity.set( 0, 0, 0 );
-        player.position.set( 15.75, - 3, 30 );
+        // player.position.set( 15.75, - 4.5 , 30 );
+		player.position.set( 15.75, - 3 , 30 );
         camera.position.sub( controls.target );
         controls.target.copy( player.position );
         camera.position.add( player.position );
@@ -341,7 +332,13 @@ function reset() {
 
 function updatePlayer( delta ) {
 
+
     if( player ) {
+
+		if(playerVelocity.y > 0) {
+			console.clear();
+			console.log('Jumping');
+		}
 
         if ( playerIsOnGround ) {
 
@@ -359,10 +356,16 @@ function updatePlayer( delta ) {
         const angle = controls.getAzimuthalAngle();
         if ( fwdPressed ) {
 
+			CharacterLoad.action_run();
+
             tempVector.set( 0, 0, - 1 ).applyAxisAngle( upVector, angle );
             player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
-        }
+        } else {
+
+			CharacterLoad.action_idle();
+
+		}
 
         if ( bkdPressed ) {
 
@@ -449,10 +452,12 @@ function updatePlayer( delta ) {
         // adjust the player model
         player.position.add( deltaVector );
 
+		// player.quaternion.rotateTowards(deltaVector, step);
+
         if ( ! playerIsOnGround ) {
 
-            deltaVector.normalize();
-            playerVelocity.addScaledVector( deltaVector, - deltaVector.dot( playerVelocity ) );
+			deltaVector.normalize();
+			playerVelocity.addScaledVector( deltaVector, - deltaVector.dot( playerVelocity ) );
 
         } else {
 
@@ -485,16 +490,16 @@ function render() {
         
         CharacterLoad.animationCharacter();
 
-        const towardDirection = camera.quaternion;
-        towardDirection.x = 0;
-        towardDirection.z = 0;
-        towardDirection.y = parseFloat(towardDirection.y.toFixed(3));
-        towardDirection.w = parseFloat(towardDirection.w.toFixed(3));
+		const cameraQuaternion = camera.quaternion;
+		const oppositeQuaternion = new THREE.Quaternion(-cameraQuaternion.x, -cameraQuaternion.y, -cameraQuaternion.z, -cameraQuaternion.w);
+		oppositeQuaternion.x = 0;
+		oppositeQuaternion.z = 0;
+
 
 		if(!shiftPressed) {
 
-			player.quaternion.rotateTowards(towardDirection, step);
-
+			player.quaternion.rotateTowards(oppositeQuaternion, step);
+			
 		}
 
     }
@@ -508,7 +513,9 @@ function render() {
 
 	} else {
 
-		controls.maxPolarAngle = Math.PI / 2;
+		// controls.maxPolarAngle = Math.PI / 2;
+		controls.maxPolarAngle = Math.PI / 3; // Max rotate to bottom
+    	controls.minPolarAngle = Math.PI / 4; // Max rotate to top
 		controls.minDistance = 1;
 		controls.maxDistance = 20;
 
