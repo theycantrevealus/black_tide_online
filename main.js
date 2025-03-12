@@ -180,9 +180,9 @@ async function init() {
 				break;
 			case 'ShiftLeft': shiftPressed = true ;break;
 			case 'Space':
+				CharacterLoad.action_jump();
+				
 				if ( playerIsOnGround ) {
-
-					CharacterLoad.action_jump();
 
 					playerVelocity.y = 10.0;
 					playerIsOnGround = false;
@@ -320,7 +320,7 @@ function reset() {
 
         playerVelocity.set( 0, 0, 0 );
         // player.position.set( 15.75, - 4.5 , 30 );
-		player.position.set( 15.75, - 3 , 30 );
+		player.position.set( 15.75, 10 , 30 );
         camera.position.sub( controls.target );
         controls.target.copy( player.position );
         camera.position.add( player.position );
@@ -336,8 +336,9 @@ function updatePlayer( delta ) {
     if( player ) {
 
 		if(playerVelocity.y > 0) {
-			console.clear();
-			console.log('Jumping');
+			
+			// CharacterLoad.action_jump();
+
 		}
 
         if ( playerIsOnGround ) {
@@ -361,13 +362,11 @@ function updatePlayer( delta ) {
             tempVector.set( 0, 0, - 1 ).applyAxisAngle( upVector, angle );
             player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
-        } else {
-
-			CharacterLoad.action_idle();
-
-		}
+        }
 
         if ( bkdPressed ) {
+
+			CharacterLoad.action_run_back();
 
             tempVector.set( 0, 0, 1 ).applyAxisAngle( upVector, angle );
             player.position.addScaledVector( tempVector, params.playerSpeed * delta );
@@ -376,6 +375,20 @@ function updatePlayer( delta ) {
 
         if ( lftPressed ) {
 
+			if( fwdPressed ) {
+
+				CharacterLoad.action_run();
+				
+			} else if ( bkdPressed ) {
+
+				CharacterLoad.action_run_back();
+
+			} else {
+
+				CharacterLoad.action_run_left();
+
+			}
+
             tempVector.set( - 1, 0, 0 ).applyAxisAngle( upVector, angle );
             player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
@@ -383,10 +396,29 @@ function updatePlayer( delta ) {
 
         if ( rgtPressed ) {
 
+			if( fwdPressed ) {
+
+				CharacterLoad.action_run();
+			} else if ( bkdPressed ) {
+
+				CharacterLoad.action_run_back();
+
+			} else {
+
+				CharacterLoad.action_run_right();
+
+			}
+
             tempVector.set( 1, 0, 0 ).applyAxisAngle( upVector, angle );
             player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
         }
+
+		if ( playerVelocity.y <= 0 && !fwdPressed && !bkdPressed && !lftPressed && !rgtPressed) {
+
+			CharacterLoad.action_idle();
+
+		}
 
         player.updateMatrixWorld();
 
@@ -510,14 +542,17 @@ function render() {
 		controls.maxPolarAngle = Math.PI;
 		controls.minDistance = 1e-4;
 		controls.maxDistance = 1e-4;
+		
 
 	} else {
 
 		// controls.maxPolarAngle = Math.PI / 2;
 		controls.maxPolarAngle = Math.PI / 3; // Max rotate to bottom
     	controls.minPolarAngle = Math.PI / 4; // Max rotate to top
-		controls.minDistance = 1;
-		controls.maxDistance = 20;
+		// controls.minDistance = 1;
+		// controls.maxDistance = 20;
+		controls.minDistance = 4;
+    	controls.maxDistance = 10;
 
 	}
 
