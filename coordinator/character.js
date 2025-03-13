@@ -4,8 +4,8 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 
 export default class __BTCharacter {
     groupCharInfo;
-    labelRenderer;
     #nickName = 'Tatang Tanaka';
+    nickNameRenderer;
     #HP = 0;
     #SP = 0;
     #EXP = 0;
@@ -45,39 +45,55 @@ export default class __BTCharacter {
         this.groupCharInfo = new THREE.Group();
         this.groupCharInfo.position.y = 100;
 
+        this.nickNameRenderer = new CSS2DRenderer();
+        this.nickNameRenderer.setSize( window.innerWidth, window.innerHeight );
+        this.nickNameRenderer.domElement.style.position = 'absolute';
+        this.nickNameRenderer.domElement.style.top = '0px';
+        // document.body.appendChild( this.nickNameRenderer.domElement );
+
         this.#scene = scene;
         this.#camera = camera;
         this.#renderer = renderer;
-        this.labelRenderer = new CSS2DRenderer();
         
     }
 
-    setNickName() {
+    async setNickName(target) {
 
         const earthDiv = document.createElement( 'div' );
         earthDiv.className = 'label';
-        earthDiv.textContent = 'Earthasdasdadasdasdasd';
+        earthDiv.textContent = 'Earth';
         earthDiv.style.backgroundColor = 'transparent';
 
         const earthLabel = new CSS2DObject( earthDiv );
-        earthLabel.position.set( {
-            x: 0,
-            y: 100,
-            z: 0
-        } );
+        earthLabel.position.set( 1.5 * EARTH_RADIUS, 0, 0 );
         earthLabel.center.set( 0, 1 );
-        this.#skeleton.add( earthLabel );
-        earthLabel.layers.set( 0 ); 
-
-        this.labelRenderer.setSize( window.innerWidth, window.innerHeight );
-        this.labelRenderer.domElement.style.position = 'absolute';
-        this.labelRenderer.domElement.style.top = '0px';
-        // document.body.appendChild( labelRenderer.domElement );
+        target.add( earthLabel );
+        earthLabel.layers.set( 0 );
         
     }
 
+    async updateLabelPosition(object, label) {
+        const vector = new THREE.Vector3();
+        object.getWorldPosition(vector);
+        const x = vector.x;
+        const y = vector.y;
+        const z = vector.z;
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        const canvasWidth = this.#renderer.domElement.offsetWidth;
+        const canvasHeight = this.#renderer.domElement.offsetHeight;
+        const labelX = (x * screenWidth) / canvasWidth + this.#renderer.domElement.offsetLeft;
+        const labelY = (y * screenHeight) / canvasHeight + this.#renderer.domElement.offsetTop;
+        label.style.left = `${labelX}px`;
+        label.style.top = `${labelY}px`;
+      }
+
     get inst_model() {
         return this.model;
+    }
+
+    get inst_label() {
+        return this.nickNameRenderer;
     }
 
     get inst_mixer() {
@@ -186,10 +202,14 @@ export default class __BTCharacter {
             await this.charLoader.load( './assets/Animated_Low_Poly_Dark_Knight_BAKED.glb' , function ( gltf ) {
                 
                 __this.model = gltf.scene;
-                __this.model.scale.setScalar(1/4);
+                __this.model.scale.setScalar( .5 );
+
+                console.log( __this.model );
 
                 __this.model.capsuleInfo = {
-                	radius: .035,
+                    tolerance: .5,
+                    // radius: .035,
+                    radius: .5,
                 	segment: new THREE.Line3( new THREE.Vector3(0, 0, 0), new THREE.Vector3( 0, 2.5, 0.0 ) )
                 };
                 __this.#scene.add( __this.model );
@@ -208,7 +228,7 @@ export default class __BTCharacter {
                 __this.#skeleton = new THREE.SkeletonHelper( __this.model );
                 __this.#skeleton.visible = false;
                 __this.#scene.add( __this.#skeleton );
-                __this.setNickName();
+                // __this.setNickName(__this.model);
 
                 __this.#settings = {
                     'show model': true,
@@ -299,8 +319,6 @@ export default class __BTCharacter {
         this.updateWeightSliders();
     
         this.updateCrossFadeControls();
-
-        this.labelRenderer.render( this.#scene, this.#camera );
     
         let mixerUpdateDelta = this.#clock.getDelta();
     

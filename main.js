@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -18,19 +18,20 @@ const params = {
 	gravity: - 30,
 	playerSpeed: 5,
 	playerSpeedForward: 5,
-	playerSpeedSide: 3.5,
-	playerSpeedBackward: 3.5,
-	physicsSteps: 20,
+	playerSpeedSide: 2.5,
+	playerSpeedBackward: 2,
+	physicsSteps: 10,
 
 	reset: reset,
 
 };
 
 let CharacterLoad;
+let labelRenderer;
 let renderer, camera, scene, clock, gui, stats;
 let environment, collider, visualizer, player, controls;
 let playerIsOnGround = false;
-let fwdPressed = false, bkdPressed = false, lftPressed = false, rgtPressed = false, shiftPressed = false;
+let fwdPressed = false, bkdPressed = false, lftPressed = false, rgtPressed = false, shiftPressed = false, ctrlPressed = false;
 let playerVelocity = new THREE.Vector3();
 let upVector = new THREE.Vector3( 0, 1, 0 );
 let tempVector = new THREE.Vector3();
@@ -45,7 +46,8 @@ render();
 
 async function init() {
 
-	const bgColor = 0x263238 / 2;
+	// const bgColor = 0x263238 / 2;
+	const bgColor = 0x00e0e0e0  / 2;
 
 	// renderer setup
 	renderer = new THREE.WebGLRenderer( { antialias: true } );
@@ -56,9 +58,15 @@ async function init() {
 	renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 	document.body.appendChild( renderer.domElement );
 
+	labelRenderer = new CSS2DRenderer();
+	labelRenderer.setSize( window.innerWidth, window.innerHeight );
+	labelRenderer.domElement.style.position = 'absolute';
+	labelRenderer.domElement.style.top = '0px';
+	document.body.appendChild( labelRenderer.domElement );
+
 	// scene setup
 	scene = new THREE.Scene();
-	scene.fog = new THREE.Fog( bgColor, 20, 70 );
+	scene.fog = new THREE.Fog( bgColor, 50, 70 );
 
 	// lights
 	const light = new THREE.DirectionalLight( 0xffffff, 3 );
@@ -85,7 +93,7 @@ async function init() {
 
 	clock = new THREE.Clock();
 
-	controls = new OrbitControls( camera, renderer.domElement );
+	controls = new OrbitControls( camera, labelRenderer.domElement );
 
 	// stats setup
 	stats = new Stats();
@@ -103,6 +111,21 @@ async function init() {
     await CharacterLoad.loadModel().then(async () => {
         
         player = await CharacterLoad.inst_model;
+
+		const earthDiv = document.createElement( 'div' );
+		earthDiv.className = 'label';
+		earthDiv.textContent = 'tatangtanaka';
+		earthDiv.style.backgroundColor = '#000';
+		earthDiv.style.color = '#fff';
+		earthDiv.style.padding = '2px';
+
+		const earthLabel = new CSS2DObject( earthDiv );
+		earthLabel.position.set( -2.55, 5, 0 );
+		earthLabel.center.set( 0, 1 );
+		player.add( earthLabel );
+		earthLabel.layers.set( 0 );
+
+		// document.body.prependChild( CharacterLoad.inst_label.domElement );
 
     });
 	
@@ -155,6 +178,7 @@ async function init() {
 		camera.updateProjectionMatrix();
 
 		renderer.setSize( window.innerWidth, window.innerHeight );
+		labelRenderer.setSize( window.innerWidth, window.innerHeight );
 
 	}, false );
 
@@ -179,6 +203,7 @@ async function init() {
 				params.playerSpeed = params.playerSpeedSide;
 				break;
 			case 'ShiftLeft': shiftPressed = true ;break;
+			case 'ControlLeft': ctrlPressed = true ;break;
 			case 'Space':
 				CharacterLoad.action_jump();
 				
@@ -206,6 +231,7 @@ async function init() {
 			case 'KeyD': rgtPressed = false; break;
 			case 'KeyA': lftPressed = false; break;
 			case 'ShiftLeft': shiftPressed = false ;break;
+			case 'ControlLeft': ctrlPressed = false ;break;
 
 		}
 
@@ -216,10 +242,13 @@ async function init() {
 function loadColliderEnvironment() {
 
 	new GLTFLoader()
-		.load( './assets/maps/warkarma/scene.gltf', res => {
+		.load( './assets/maps/mountain/snowy_mountain_-_terrain.glb', res => {
+		// .load( './assets/maps/warkarma/scene.gltf', res => {
+		
 
 			const gltfScene = res.scene;
-			gltfScene.scale.setScalar( .01 );
+			// gltfScene.scale.setScalar( 1 );
+			gltfScene.scale.setScalar( 1900 );
 
 			const box = new THREE.Box3();
 			box.setFromObject( gltfScene );
@@ -228,30 +257,33 @@ function loadColliderEnvironment() {
 
 			// visual geometry setup
 			const toMerge = {};
+			const texture = new THREE.TextureLoader().load('./assets/maps/mountain/textures/material_0_baseColor.jpeg' );
 			gltfScene.traverse( c => {
 
-				if (
-					/Boss/.test( c.name ) ||
-				/Enemie/.test( c.name ) ||
-				/Shield/.test( c.name ) ||
-				/Sword/.test( c.name ) ||
-				/Character/.test( c.name ) ||
-				/Gate/.test( c.name ) ||
+				// if (
+				// 	/Boss/.test( c.name ) ||
+				// /Enemie/.test( c.name ) ||
+				// /Shield/.test( c.name ) ||
+				// /Sword/.test( c.name ) ||
+				// /Character/.test( c.name ) ||
+				// /Gate/.test( c.name ) ||
 
-				// spears
-				/Cube/.test( c.name ) ||
+				// // spears
+				// /Cube/.test( c.name ) ||
 
-				// pink brick
-				c.material && c.material.color.r === 1.0
-				) {
+				// // pink brick
+				// c.material && c.material.color.r === 1.0
+				// ) {
 
-					return;
+				// 	return;
 
-				}
+				// }
 
 				if ( c.isMesh ) {
 
 					const hex = c.material.color.getHex();
+					c.castShadow = true;
+					c.receiveShadow = true;
 					toMerge[ hex ] = toMerge[ hex ] || [];
 					toMerge[ hex ].push( c );
 
@@ -283,7 +315,8 @@ function loadColliderEnvironment() {
 				if ( visualGeometries.length ) {
 
 					const newGeom = BufferGeometryUtils.mergeGeometries( visualGeometries );
-					const newMesh = new THREE.Mesh( newGeom, new THREE.MeshStandardMaterial( { color: parseInt( hex ), shadowSide: 2 } ) );
+					// const newMesh = new THREE.Mesh( newGeom, new THREE.MeshStandardMaterial( { color: parseInt( hex ), shadowSide: 2 } ) );
+					const newMesh = new THREE.Mesh( newGeom, new THREE.MeshStandardMaterial( { map: texture } ) );
 					newMesh.castShadow = true;
 					newMesh.receiveShadow = true;
 					newMesh.material.shadowSide = 2;
@@ -319,8 +352,21 @@ function reset() {
     if( player ) {
 
         playerVelocity.set( 0, 0, 0 );
-        // player.position.set( 15.75, - 4.5 , 30 );
-		player.position.set( 15.75, 10 , 30 );
+		// Dungeon
+		// player.position.set( 15.75, 10 , 30 );
+
+		// Desert
+		// player.position.set( 31, -138 , 28 );
+
+		// Mountain - Field
+		// player.position.set( 104, -104 , -24 );
+		
+		// Mountain - Cliff
+		// player.position.set( 241, -50 , 41 );
+
+		// Mountain - Top
+		player.position.set( 310, -8 , 37 );
+
         camera.position.sub( controls.target );
         controls.target.copy( player.position );
         camera.position.add( player.position );
@@ -378,10 +424,12 @@ function updatePlayer( delta ) {
 			if( fwdPressed ) {
 
 				CharacterLoad.action_run();
+				params.playerSpeed = params.playerSpeedForward;
 				
 			} else if ( bkdPressed ) {
 
 				CharacterLoad.action_run_back();
+				params.playerSpeed = params.playerSpeedBackward;
 
 			} else {
 
@@ -399,9 +447,12 @@ function updatePlayer( delta ) {
 			if( fwdPressed ) {
 
 				CharacterLoad.action_run();
+				params.playerSpeed = params.playerSpeedForward;
+
 			} else if ( bkdPressed ) {
 
 				CharacterLoad.action_run_back();
+				params.playerSpeed = params.playerSpeedBackward;
 
 			} else {
 
@@ -451,6 +502,7 @@ function updatePlayer( delta ) {
                 const capsulePoint = tempVector2;
 
                 const distance = tri.closestPointToSegment( tempSegment, triPoint, capsulePoint );
+				
                 if ( distance < capsuleInfo.radius ) {
 
                     const depth = capsuleInfo.radius - distance;
@@ -501,9 +553,11 @@ function updatePlayer( delta ) {
         camera.position.sub( controls.target );
         controls.target.copy( player.position );
         camera.position.add( player.position );
+		// console.clear();
+		// console.log( JSON.stringify( player.position ) );
 
         // if the player has fallen too far below the level reset their position to the start
-        if ( player.position.y < - 25 ) {
+        if ( player.position.y < - 305 ) {
 
             reset();
 
@@ -528,7 +582,7 @@ function render() {
 		oppositeQuaternion.z = 0;
 
 
-		if(!shiftPressed) {
+		if(!ctrlPressed) {
 
 			player.quaternion.rotateTowards(oppositeQuaternion, step);
 			
@@ -549,10 +603,8 @@ function render() {
 		// controls.maxPolarAngle = Math.PI / 2;
 		controls.maxPolarAngle = Math.PI / 3; // Max rotate to bottom
     	controls.minPolarAngle = Math.PI / 4; // Max rotate to top
-		// controls.minDistance = 1;
-		// controls.maxDistance = 20;
 		controls.minDistance = 4;
-    	controls.maxDistance = 10;
+    	controls.maxDistance = 20;
 
 	}
 
@@ -577,5 +629,6 @@ function render() {
 	controls.update();
 
 	renderer.render( scene, camera );
+	labelRenderer.render( scene, camera );
 
 }
