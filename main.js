@@ -46,7 +46,10 @@ render();
 
 async function init() {
 
+	// Dark Color
 	// const bgColor = 0x263238 / 2;
+
+	// Light Color
 	const bgColor = 0x00e0e0e0  / 2;
 
 	// renderer setup
@@ -112,18 +115,67 @@ async function init() {
         
         player = await CharacterLoad.inst_model;
 
-		const earthDiv = document.createElement( 'div' );
-		earthDiv.className = 'label';
-		earthDiv.textContent = 'tatangtanaka';
-		earthDiv.style.backgroundColor = '#000';
-		earthDiv.style.color = '#fff';
-		earthDiv.style.padding = '2px';
+		const nickName = document.createElement( 'div' );
+		nickName.className = 'label';
+		nickName.textContent = 'tatangtanaka';
+		nickName.style.backgroundColor = 'transparent';
+		nickName.style.position = 'absolute';
+		nickName.style.whiteSpace = 'pre';
+		nickName.style.width = '150px';
+		nickName.style.textShadow = '0px 0px 16px #000';
+		nickName.style.left = '-75px';
+		nickName.style.textAlign = 'center';
+		nickName.style.fontSize = '10pt';
+		nickName.style.color = '#7be575';
+		nickName.style.padding = '2px';
 
-		const earthLabel = new CSS2DObject( earthDiv );
-		earthLabel.position.set( -2.55, 5, 0 );
-		earthLabel.center.set( 0, 1 );
-		player.add( earthLabel );
-		earthLabel.layers.set( 0 );
+		const nickNameLabel = new CSS2DObject( nickName );
+		nickNameLabel.position.set( 0, 6, 0 );
+		nickNameLabel.center.set( 0, 1 );
+		player.add( nickNameLabel );
+		nickNameLabel.layers.set( 0 );
+
+		const rankName = document.createElement( 'div' );
+		rankName.className = 'label';
+		rankName.textContent = '<4th RankAsmodian Soldiers>';
+		rankName.style.backgroundColor = 'transparent';
+		rankName.style.position = 'absolute';
+		rankName.style.whiteSpace = 'pre';
+		rankName.style.width = '180px';
+		rankName.style.textShadow = '0px 0px 16px #000';
+		rankName.style.left = '-90px';
+		rankName.style.textAlign = 'center';
+		rankName.style.fontSize = '10pt';
+		rankName.style.color = '#fff';
+		rankName.style.padding = '2px';
+
+		const rankLabel = new CSS2DObject( rankName );
+		rankLabel.position.set( 0, 5, 0 );
+		rankLabel.center.set( 0, 1 );
+		player.add( rankLabel );
+		rankLabel.layers.set( 0 );
+
+		const hp_bar = document.createElement( 'div' );
+		hp_bar.className = 'label';
+		hp_bar.style.backgroundImage = 'url("./assets/hp.png")';
+		hp_bar.style.backgroundSize = "120px 20px";
+		hp_bar.style.backgroundRepeat = 'no-repeat';
+		hp_bar.style.position = 'absolute';
+		hp_bar.style.whiteSpace = 'pre';
+		hp_bar.style.width = '120px';
+		hp_bar.style.height = '20px';
+		hp_bar.style.textShadow = '0px 0px 16px #000';
+		hp_bar.style.left = '-50px';
+		hp_bar.style.textAlign = 'center';
+		hp_bar.style.fontSize = '10pt';
+		hp_bar.style.color = '#fff';
+		hp_bar.style.padding = '2px';
+
+		const hp_bar_container = new CSS2DObject( hp_bar );
+		hp_bar_container.position.set( 0, -2, 0 );
+		hp_bar_container.center.set( 0, 1 );
+		player.add( hp_bar_container );
+		hp_bar_container.layers.set( 0 );
 
 		// document.body.prependChild( CharacterLoad.inst_label.domElement );
 
