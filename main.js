@@ -26,13 +26,12 @@ const params = {
 
 };
 
-let CharacterLoad;
+let CharacterLoad, MonsterLoad;
 let labelRenderer;
 let renderer, camera, scene, clock, gui, stats;
+let monster1;
 let environment, collider, visualizer, player, controls;
-let playerIsOnGround = false;
 let fwdPressed = false, bkdPressed = false, lftPressed = false, rgtPressed = false, shiftPressed = false, ctrlPressed = false;
-let playerVelocity = new THREE.Vector3();
 let upVector = new THREE.Vector3( 0, 1, 0 );
 let tempVector = new THREE.Vector3();
 let tempVector2 = new THREE.Vector3();
@@ -50,7 +49,7 @@ async function init() {
 	// const bgColor = 0x263238 / 2;
 
 	// Light Color
-	const bgColor = 0x00e0e0e0  / 2;
+	const bgColor = 0xFFFFFFFF  / 2;
 
 	// renderer setup
 	renderer = new THREE.WebGLRenderer( { antialias: true } );
@@ -73,7 +72,9 @@ async function init() {
 
 	// lights
 	const light = new THREE.DirectionalLight( 0xffffff, 3 );
-	light.position.set( 1, 1.5, 1 ).multiplyScalar( 50 );
+	// light.position.set( 1, 1.5, 1 ).multiplyScalar( 50 );
+	// light.position.set( 1, 1.5, 1 ).multiplyScalar( 1 );
+	light.position.set( 104, 204 , 200 ).multiplyScalar( 2 );
 	light.shadow.mapSize.setScalar( 2048 );
 	light.shadow.bias = - 1e-4;
 	light.shadow.normalBias = 0.05;
@@ -110,8 +111,77 @@ async function init() {
 	// 	new THREE.MeshStandardMaterial()
 	// );
 
+	MonsterLoad = new __BTCharacter( scene, renderer, camera );
+	await MonsterLoad.loadModel( './assets/characters/shadow_flame_mantis.glb', 10, 'Idle' ).then(async () => {
+        
+        monster1 = await MonsterLoad.inst_model;
+
+		const nickName = document.createElement( 'div' );
+		nickName.className = 'label';
+		nickName.textContent = 'Flame Mantis';
+		nickName.style.backgroundColor = 'transparent';
+		nickName.style.position = 'absolute';
+		nickName.style.whiteSpace = 'pre';
+		nickName.style.width = '150px';
+		nickName.style.textShadow = '0px 0px 16px #000';
+		nickName.style.left = '-75px';
+		nickName.style.textAlign = 'center';
+		nickName.style.fontSize = '10pt';
+		nickName.style.color = '#f00';
+		nickName.style.padding = '2px';
+
+		const nickNameLabel = new CSS2DObject( nickName );
+		nickNameLabel.position.set( 0, -.25, 0 );
+		nickNameLabel.center.set( 0, 1 );
+		monster1.add( nickNameLabel );
+		nickNameLabel.layers.set( 0 );
+
+		const rankName = document.createElement( 'div' );
+		rankName.className = 'label';
+		rankName.textContent = '<Large>';
+		rankName.style.backgroundColor = 'transparent';
+		rankName.style.position = 'absolute';
+		rankName.style.whiteSpace = 'pre';
+		rankName.style.width = '180px';
+		rankName.style.textShadow = '0px 0px 16px #000';
+		rankName.style.left = '-90px';
+		rankName.style.textAlign = 'center';
+		rankName.style.fontSize = '10pt';
+		rankName.style.color = '#ff7777';
+		rankName.style.padding = '2px';
+
+		const rankLabel = new CSS2DObject( rankName );
+		rankLabel.position.set( 0, -.35, 0 );
+		rankLabel.center.set( 0, 1 );
+		monster1.add( rankLabel );
+		rankLabel.layers.set( 0 );
+
+		const hp_bar = document.createElement( 'div' );
+		hp_bar.className = 'label';
+		hp_bar.style.backgroundImage = 'url("./assets/hp.png")';
+		hp_bar.style.backgroundSize = "120px 20px";
+		hp_bar.style.backgroundRepeat = 'no-repeat';
+		hp_bar.style.position = 'absolute';
+		hp_bar.style.whiteSpace = 'pre';
+		hp_bar.style.width = '120px';
+		hp_bar.style.height = '20px';
+		hp_bar.style.textShadow = '0px 0px 16px #000';
+		hp_bar.style.left = '-50px';
+		hp_bar.style.textAlign = 'center';
+		hp_bar.style.fontSize = '10pt';
+		hp_bar.style.color = '#fff';
+		hp_bar.style.padding = '2px';
+
+		const hp_bar_container = new CSS2DObject( hp_bar );
+		hp_bar_container.position.set( 0, 1, 0 );
+		hp_bar_container.center.set( 0, 1 );
+		monster1.add( hp_bar_container );
+		hp_bar_container.layers.set( 0 );
+
+	});
+
     CharacterLoad = new __BTCharacter( scene, renderer, camera );
-    await CharacterLoad.loadModel().then(async () => {
+    await CharacterLoad.loadModel( './assets/Animated_Low_Poly_Dark_Knight_BAKED.glb', .5, 'Stand_Idle_1' ).then(async () => {
         
         player = await CharacterLoad.inst_model;
 
@@ -259,10 +329,10 @@ async function init() {
 			case 'Space':
 				CharacterLoad.action_jump();
 				
-				if ( playerIsOnGround ) {
+				if ( player.capsuleInfo.isOnGround ) {
 
-					playerVelocity.y = 10.0;
-					playerIsOnGround = false;
+					player.capsuleInfo.velocity.y = 10.0;
+					player.capsuleInfo.isOnGround = false;
 
 				}
 
@@ -309,7 +379,7 @@ function loadColliderEnvironment() {
 
 			// visual geometry setup
 			const toMerge = {};
-			const texture = new THREE.TextureLoader().load('./assets/maps/mountain/textures/material_0_baseColor.jpeg' );
+			const mapTexture = new THREE.TextureLoader().load('./assets/maps/mountain/textures/material_0_baseColor.jpeg' );
 			gltfScene.traverse( c => {
 
 				// if (
@@ -368,10 +438,14 @@ function loadColliderEnvironment() {
 
 					const newGeom = BufferGeometryUtils.mergeGeometries( visualGeometries );
 					// const newMesh = new THREE.Mesh( newGeom, new THREE.MeshStandardMaterial( { color: parseInt( hex ), shadowSide: 2 } ) );
-					const newMesh = new THREE.Mesh( newGeom, new THREE.MeshStandardMaterial( { map: texture } ) );
-					newMesh.castShadow = true;
-					newMesh.receiveShadow = true;
-					newMesh.material.shadowSide = 2;
+					const newMesh = new THREE.Mesh( newGeom, new THREE.MeshStandardMaterial( {
+						
+						map: mapTexture,
+						shadowSide: 2,
+						castShadow: true,
+						receiveShadow: true
+
+					} ) );
 
 					environment.add( newMesh );
 
@@ -403,7 +477,7 @@ function reset() {
 
     if( player ) {
 
-        playerVelocity.set( 0, 0, 0 );
+        player.capsuleInfo.velocity.set( 0, 0, 0 );
 		// Dungeon
 		// player.position.set( 15.75, 10 , 30 );
 
@@ -411,115 +485,132 @@ function reset() {
 		// player.position.set( 31, -138 , 28 );
 
 		// Mountain - Field
-		// player.position.set( 104, -104 , -24 );
+		player.position.set( 104, -104 , -24 );
+		// player.position.set( 136, -103 , -6 );
 		
 		// Mountain - Cliff
 		// player.position.set( 241, -50 , 41 );
 
 		// Mountain - Top
-		player.position.set( 310, -8 , 37 );
-
-        camera.position.sub( controls.target );
-        controls.target.copy( player.position );
-        camera.position.add( player.position );
-        controls.update();
+		// player.position.set( 310, -8 , 37 );
 
     }
 
+	if ( monster1 ) {
+
+		// Mountain - Ling Xu Zia
+		monster1.position.set( 136, -103 , -6 );
+
+	}
+
+	camera.position.sub( controls.target );
+	controls.target.copy( player.position );
+	camera.position.add( player.position );
+	controls.update();
+
 }
 
-function updatePlayer( delta ) {
+function updatePlayer( player, delta, playerMove = false ) {
 
 
     if( player ) {
 
-		if(playerVelocity.y > 0) {
+		if(player.capsuleInfo.velocity.y > 0) {
 			
 			// CharacterLoad.action_jump();
 
 		}
 
-        if ( playerIsOnGround ) {
+        if ( player.capsuleInfo.isOnGround ) {
 
-            playerVelocity.y = delta * params.gravity;
+            player.capsuleInfo.velocity.y = delta * params.gravity;
 
         } else {
 
-            playerVelocity.y += delta * params.gravity;
+			if ( playerMove ) { // Jump event
+				
+				player.capsuleInfo.velocity.y += delta * params.gravity;
+
+			}
 
         }
 
-        player.position.addScaledVector( playerVelocity, delta );
+        player.position.addScaledVector( player.capsuleInfo.velocity, delta );
 
         // move the player
         const angle = controls.getAzimuthalAngle();
-        if ( fwdPressed ) {
 
-			CharacterLoad.action_run();
-
-            tempVector.set( 0, 0, - 1 ).applyAxisAngle( upVector, angle );
-            player.position.addScaledVector( tempVector, params.playerSpeed * delta );
-
-        }
-
-        if ( bkdPressed ) {
-
-			CharacterLoad.action_run_back();
-
-            tempVector.set( 0, 0, 1 ).applyAxisAngle( upVector, angle );
-            player.position.addScaledVector( tempVector, params.playerSpeed * delta );
-
-        }
-
-        if ( lftPressed ) {
-
-			if( fwdPressed ) {
+		if( playerMove ) {
+			
+			if ( fwdPressed ) {
 
 				CharacterLoad.action_run();
-				params.playerSpeed = params.playerSpeedForward;
-				
-			} else if ( bkdPressed ) {
 
-				CharacterLoad.action_run_back();
-				params.playerSpeed = params.playerSpeedBackward;
-
-			} else {
-
-				CharacterLoad.action_run_left();
+				tempVector.set( 0, 0, - 1 ).applyAxisAngle( upVector, angle );
+				player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
 			}
 
-            tempVector.set( - 1, 0, 0 ).applyAxisAngle( upVector, angle );
-            player.position.addScaledVector( tempVector, params.playerSpeed * delta );
-
-        }
-
-        if ( rgtPressed ) {
-
-			if( fwdPressed ) {
-
-				CharacterLoad.action_run();
-				params.playerSpeed = params.playerSpeedForward;
-
-			} else if ( bkdPressed ) {
+			if ( bkdPressed ) {
 
 				CharacterLoad.action_run_back();
-				params.playerSpeed = params.playerSpeedBackward;
 
-			} else {
-
-				CharacterLoad.action_run_right();
+				tempVector.set( 0, 0, 1 ).applyAxisAngle( upVector, angle );
+				player.position.addScaledVector( tempVector, params.playerSpeed * delta );
 
 			}
 
-            tempVector.set( 1, 0, 0 ).applyAxisAngle( upVector, angle );
-            player.position.addScaledVector( tempVector, params.playerSpeed * delta );
+			if ( lftPressed ) {
 
-        }
+				if( fwdPressed ) {
 
-		if ( playerVelocity.y <= 0 && !fwdPressed && !bkdPressed && !lftPressed && !rgtPressed) {
+					CharacterLoad.action_run();
+					params.playerSpeed = params.playerSpeedForward;
+					
+				} else if ( bkdPressed ) {
 
-			CharacterLoad.action_idle();
+					CharacterLoad.action_run_back();
+					params.playerSpeed = params.playerSpeedBackward;
+
+				} else {
+
+					CharacterLoad.action_run_left();
+
+				}
+
+				tempVector.set( - 1, 0, 0 ).applyAxisAngle( upVector, angle );
+				player.position.addScaledVector( tempVector, params.playerSpeed * delta );
+
+			}
+
+			if ( rgtPressed ) {
+
+				if( fwdPressed ) {
+
+					CharacterLoad.action_run();
+					params.playerSpeed = params.playerSpeedForward;
+
+				} else if ( bkdPressed ) {
+
+					CharacterLoad.action_run_back();
+					params.playerSpeed = params.playerSpeedBackward;
+
+				} else {
+
+					CharacterLoad.action_run_right();
+
+				}
+
+				tempVector.set( 1, 0, 0 ).applyAxisAngle( upVector, angle );
+				player.position.addScaledVector( tempVector, params.playerSpeed * delta );
+
+			}
+
+			if ( player.capsuleInfo.velocity.y <= 0 && !fwdPressed && !bkdPressed && !lftPressed && !rgtPressed) {
+
+				CharacterLoad.action_idle();
+
+			}
 
 		}
 
@@ -580,7 +671,7 @@ function updatePlayer( delta ) {
         deltaVector.subVectors( newPosition, player.position );
 
         // if the player was primarily adjusted vertically we assume it's on something we should consider ground
-        playerIsOnGround = deltaVector.y > Math.abs( delta * playerVelocity.y * 0.25 );
+        player.capsuleInfo.isOnGround = deltaVector.y > Math.abs( delta * player.capsuleInfo.velocity.y * 0.25 );
 
         const offset = Math.max( 0.0, deltaVector.length() - 1e-5 );
         deltaVector.normalize().multiplyScalar( offset );
@@ -590,23 +681,28 @@ function updatePlayer( delta ) {
 
 		// player.quaternion.rotateTowards(deltaVector, step);
 
-        if ( ! playerIsOnGround ) {
+        if ( ! player.capsuleInfo.isOnGround ) {
 
 			deltaVector.normalize();
-			playerVelocity.addScaledVector( deltaVector, - deltaVector.dot( playerVelocity ) );
+			player.capsuleInfo.velocity.addScaledVector( deltaVector, - deltaVector.dot( player.capsuleInfo.velocity ) );
 
         } else {
 
-            playerVelocity.set( 0, 0, 0 );
+            player.capsuleInfo.velocity.set( 0, 0, 0 );
 
         }
 
-        // adjust the camera
-        camera.position.sub( controls.target );
-        controls.target.copy( player.position );
-        camera.position.add( player.position );
-		// console.clear();
-		// console.log( JSON.stringify( player.position ) );
+
+		if ( playerMove ) {
+
+			// adjust the camera
+			camera.position.sub( controls.target );
+			controls.target.copy( player.position );
+			camera.position.add( player.position );
+			// console.clear();
+			// console.log( JSON.stringify( player.position ) );
+			
+		}
 
         // if the player has fallen too far below the level reset their position to the start
         if ( player.position.y < - 305 ) {
@@ -624,9 +720,10 @@ function render() {
 	stats.update();
 	requestAnimationFrame( render );
 
-    if( CharacterLoad && player ) {
+    if( CharacterLoad && MonsterLoad && player ) {
         
         CharacterLoad.animationCharacter();
+		MonsterLoad.animationCharacter();
 
 		const cameraQuaternion = camera.quaternion;
 		const oppositeQuaternion = new THREE.Quaternion(-cameraQuaternion.x, -cameraQuaternion.y, -cameraQuaternion.z, -cameraQuaternion.w);
@@ -656,7 +753,7 @@ function render() {
 		controls.maxPolarAngle = Math.PI / 3; // Max rotate to bottom
     	controls.minPolarAngle = Math.PI / 4; // Max rotate to top
 		controls.minDistance = 4;
-    	controls.maxDistance = 20;
+    	controls.maxDistance = 30;
 
 	}
 
@@ -669,7 +766,8 @@ function render() {
 
 		for ( let i = 0; i < physicsSteps; i ++ ) {
 
-			updatePlayer( delta / physicsSteps );
+			updatePlayer( player, delta / physicsSteps, true );
+			updatePlayer( monster1, delta / physicsSteps, false );
 
 		}
 

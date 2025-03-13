@@ -161,10 +161,14 @@ export default class __BTCharacter {
     }
 
     async action_idle() {
-        
-        if(this.motion[ this.motion_initial ].isRunning == 0) {
 
-            this.prepareCrossFade( this.motion_active, this.motion_initial, 1 );
+        if ( this.motion[ this.motion_initial ] ) {
+            
+            if( this.motion[ this.motion_initial ].isRunning == 0 ) {
+
+                this.prepareCrossFade( this.motion_active, this.motion_initial, 1 );
+    
+            }
 
         }
 
@@ -177,9 +181,11 @@ export default class __BTCharacter {
     }
 
     async move(movements) {
+        
         this.#keyfames = [{ time: 0, position: new THREE.Vector3(this.model.position.x, this.model.position.y, this.model.position.z) }]
         this.#keyfames.push({ time: 1, position: new THREE.Vector3(movements.x, movements.y, movements.z) });
         return this.#keyfames;
+
     }
 
     get currentKeyframe() {
@@ -192,25 +198,29 @@ export default class __BTCharacter {
 
     }
 
-    async loadModel() {
+    async loadModel( asset, scalarSize, initialMove ) {
+
+        this.motion_initial = initialMove;
 
         return new Promise(async (resolve, reject) => {
             
             this.charLoader = new GLTFLoader();
             var __this = this;
 
-            await this.charLoader.load( './assets/Animated_Low_Poly_Dark_Knight_BAKED.glb' , function ( gltf ) {
+            await this.charLoader.load( asset , function ( gltf ) {
                 
                 __this.model = gltf.scene;
-                __this.model.scale.setScalar( .5 );
+                __this.model.scale.setScalar( scalarSize );
 
-                console.log( __this.model );
+                // console.log( __this.model );
 
                 __this.model.capsuleInfo = {
                     tolerance: .5,
                     // radius: .035,
                     radius: .5,
-                	segment: new THREE.Line3( new THREE.Vector3(0, 0, 0), new THREE.Vector3( 0, 2.5, 0.0 ) )
+                	segment: new THREE.Line3( new THREE.Vector3(0, 0, 0), new THREE.Vector3( 0, 2.5, 0.0 ) ),
+                    velocity: new THREE.Vector3(),
+                    isOnGround: false
                 };
                 __this.#scene.add( __this.model );
 
@@ -331,7 +341,11 @@ export default class __BTCharacter {
 
         if(this.mixer) {
 
-            this.mixer.update( __this.motion[ __this.motion_active ].animationSpeed );
+            if ( __this.motion[ __this.motion_active ] ) {
+
+                this.mixer.update( __this.motion[ __this.motion_active ].animationSpeed );
+
+            }
 
             // // Animation speed : Ling Xu Zia
             // this.mixer.update( .05 );
